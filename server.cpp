@@ -12,7 +12,15 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
+#define buffer_size 512
+
 using namespace std;
+
+int generate_ephemeral_port() //generates random port between 1024 and 65535
+{
+	unsigned short int value;
+	value = (rand()%64512) + 1024;	
+}
 
 int main(int argc, char *argv[]){
     int status;
@@ -40,6 +48,16 @@ int main(int argc, char *argv[]){
         exit(0);
     }
     cout << "Socket binded." << endl;
+    
+    cout << "Waiting to recvfrom ..." << endl;
+    
+    while(true){
+        //call recvfrom to get a RRQ from client
+        
+        
+        
+    }
+    
     
     exit(1);
 }
