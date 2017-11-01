@@ -23,21 +23,8 @@ int generate_ephemeral_port() //generates random port between 1024 and 65535
 }
 
 int main(int argc, char *argv[]){
-    
-    if(argc != 3){ //if input argument is not exactly 3, return an error
-        cout << stderr << "usage: server ip port" << endl;
-        exit(0);
-    }
-    
-    //declare variables and data structures
     int status; 
     int servsock; //server socket
-    
-    fd_set master;// Create a master set of file discriptor.
-    fd_set read_fds;  // temp file descriptor list for select()
-    FD_ZERO (&master);// Clear all entries in set.
-    FD_ZERO (&read_fds);// Clear all entries in set.
-    int maxfd;
     
     struct addrinfo hints;
     struct addrinfo *servinfo, *clientinfo;
