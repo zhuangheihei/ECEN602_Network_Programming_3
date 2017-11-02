@@ -352,6 +352,7 @@ int main(int argc, char *argv[]){
                 }
                 resend_count ++;
             }//end of transfering packets
+            
             f.close();
             close(serv_sock);
             cout << "File transmission complete.\n" << endl;
