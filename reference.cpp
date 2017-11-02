@@ -163,6 +163,7 @@ int main(int argc, char *argv[]){
 		}
 		break;
 	}
+	
 	if(p==NULL){
 		fprintf(stderr, "my sock fd: failed to bind\n");
 		return 2;
@@ -204,7 +205,6 @@ int main(int argc, char *argv[]){
 		}
 		struct sockaddr_in* new_client_a = (struct sockaddr_in*)&client_addr;
         printf("Server: got packet from %s on port %hu\n",inet_ntop(client_addr.ss_family,get_in_addr((struct sockaddr *)&client_addr),ipstr, sizeof ipstr),ntohs(new_client_a->sin_port));
-        //printf("Server: packet is %d bytes long\n", num_bytes);
 
         struct tftp *out;
         out = decode(buf);  //decode received message
@@ -215,7 +215,7 @@ int main(int argc, char *argv[]){
             continue;
         }
 
-        if(!fork()){
+        if(!fork()){ //fork返回0时执行，非0时不执行
             close(sockfd);
             //getting new socket with random port number for communication
         	if((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol))== -1){	// create the new server socket
@@ -227,10 +227,10 @@ int main(int argc, char *argv[]){
     		}
 
     		socklen_t len = sizeof(new_a);
+            
             if (getsockname(sockfd, &new_a, &len) == -1) {
                 perror("getsockname");
             }
-            //printf("New Client Port %hu\n",ntohs(new_addr->sin_port));
 
             /***********************************************************************************/
             // Opening requested file and send ERROR message if file could not be opened
