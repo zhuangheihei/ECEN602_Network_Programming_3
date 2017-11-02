@@ -190,8 +190,8 @@ int main(int argc, char *argv[]){
 	}
     
     cout << "Socket binded." << endl;
-    
-    cout << "Server is now online ...\n" << endl;
+    cout << "Server is now online ..." << endl;
+    cout << "------------------------------------------------------------" << endl;
     
     //initialize variables for recvfrom
     char buff[buffer_size];
@@ -201,8 +201,8 @@ int main(int argc, char *argv[]){
     new_addr = *(p->ai_addr);
     struct sockaddr_in* new_address;
     new_address = (struct sockaddr_in*) &new_addr;
-    new_address->sin_port = htons(generate_ephemeral_port());
-    //new_address->sin_port = htons(0);
+    //new_address->sin_port = htons(generate_ephemeral_port());
+    new_address->sin_port = htons(0);
     
     sa.sa_handler = handle_sigchld; // kill all dead processes
     sigemptyset(&sa.sa_mask);
@@ -215,6 +215,7 @@ int main(int argc, char *argv[]){
     while(true){
         //call recvfrom to get a RRQ from client
         client_len = sizeof client_addr;
+        
         if((bytes = recvfrom(serv_sock, buff, buffer_size - 1, 0, (struct sockaddr *)&client_addr, &client_len)) == -1){
             perror("recvfrom");
             exit(1);
@@ -224,7 +225,7 @@ int main(int argc, char *argv[]){
         inet_ntop(client_addr.ss_family,get_addr((struct sockaddr *)&client_addr),s, sizeof s) << " "
         << "Port: " << ntohs(new_client_addr->sin_port) << endl;
         
-        cout << "Server: packet is "<< bytes << " bytes long." << endl;
+        //cout << "Server: packet is "<< bytes << " bytes long." << endl;
         
         struct TFTP *send_packet;
         send_packet = read_packet(buff);
@@ -258,6 +259,7 @@ int main(int argc, char *argv[]){
             ifstream f;
             char *file_name = send_packet->filename;
             f.open(file_name, ios::in);
+            
             if(!f.is_open()){
                 //---------this might have issues-------//
                 cout << "Could not find requested file: " << send_packet -> filename << endl;
@@ -275,7 +277,7 @@ int main(int argc, char *argv[]){
                 }
                 //------------end--------------//
                 exit(0);
-            }
+            }//
             
             //calculate the file size
             streampos start, end;
@@ -287,11 +289,12 @@ int main(int argc, char *argv[]){
             int packet_num = file_size/512 + 1;
             
             cout << "The ephemeral port for this transmission is " << ntohs(new_address->sin_port) << "." << endl;
-            cout << "File size is: " << file_size << " bytes." << endl;
-            cout << "Packet count is: " << packet_num << endl;
+            cout << "File size is " << file_size << " bytes." << endl;
+            cout << "Number of packets is " << packet_num << endl;
             
             char file_buf[buffer_size + 1];
             int block_number = 0;
+            int block_count = 0; //count total number of packets
             int last_ack = 0;
             int resend_count = 0;
             int f_len;
@@ -302,11 +305,18 @@ int main(int argc, char *argv[]){
             t.tv_sec = 1;
             //t.tv_usec = 50000;
             
-            while(last_ack < packet_num){
+            //send file
+            do{
+                //modified here 
+                if(block_number == 65536){
+                    block_number = 0;
+                }
+                
                 if(last_ack == block_number){
                     f.read(file_buf, buffer_size);
                     f_len = f.gcount(); //count the characters get from file
                     block_number++;
+                    block_count++;
                     resend_count = 0;
                 }
                 
@@ -315,9 +325,9 @@ int main(int argc, char *argv[]){
                         cout << "Client Timeout." << endl;
                         break;
                     }
-                    cout << "Try to resend packet." << endl;
+                    cout << "Try to resend packet " << block_number << endl;
                 }
-                
+            
                 char *packet = to_tftp(DATA, block_number, file_buf, f_len);  // convert data the TFTP packet structure
                 
                 if((bytes = sendto(serv_sock, packet, f_len + 4, 0, (struct sockaddr *)&client_addr,client_len)) == -1){
@@ -339,6 +349,7 @@ int main(int argc, char *argv[]){
                 if(FD_ISSET(serv_sock, &read_fds)){
                     struct sockaddr_storage temp_addr;
                     socklen_t temp_len = sizeof temp_addr;
+                    
                     if((bytes = recvfrom(serv_sock, buff, 4, 0, (struct sockaddr *)&temp_addr, &temp_len)) == -1){
                         perror("recvfrom");
                         exit(0);
@@ -346,16 +357,23 @@ int main(int argc, char *argv[]){
                 }
                 struct sockaddr_in* temp_client_addr = (struct sockaddr_in*)& client_addr;
                 
+                //compare if the temp port we are on is the same as the port we previously got
                 if(temp_client_addr->sin_addr.s_addr == new_client_addr->sin_addr.s_addr){
                     send_packet = read_packet(buff);
                     last_ack = send_packet->block_number;
                 }
-                resend_count ++;
-            }//end of transfering packets
+
+                resend_count ++; //count the number of resend
+                
+                if(block_count == packet_num){
+                    break;
+                }
+            }while(last_ack < packet_num);//end of transfering packets
             
             f.close();
             close(serv_sock);
-            cout << "File transmission complete.\n" << endl;
+            cout << "File transmission complete." << endl;
+            cout << "------------------------------------------------------------" << endl;
             exit(0);
         }
         free(send_packet);
