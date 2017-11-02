@@ -1,21 +1,21 @@
 #include <iostream>
-#include <fstream>
-#include <string>
-#include <cstdlib>
+#include<fstream>
+#include<string>
+#include<cstdlib>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <signal.h>
-#include <fcntl.h>
+#include<fcntl.h>
 //Network header file
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include <sys/wait.h>
+#include<sys/wait.h>
 
 #define buffer_size 512
 #define RRQ 1
@@ -32,7 +32,7 @@ struct TFTP{
     uint16_t opcode;                            // 2 Bytes Opcode
     char * filename;                            // Filename
     char * mode;                                // Mode (Octet)
-    uint16_t block_number;                      // Block Number
+    uint16_t block_number;                             // Block Number
 };
 
 void handle_sigchld(int sig) {
@@ -123,12 +123,10 @@ char *to_tftp(uint16_t opcode, uint16_t block_number, char *message, int length)
 
 //get address regardless of ipv4 or ipv6
 
-//generates random port between 1024 and 65535
-unsigned int generate_ephemeral_port() 
+unsigned int generate_ephemeral_port() //generates random port between 1024 and 65535
 {
 	unsigned short int value;
-	value = (rand()%64512) + 1024;
-	return value;
+	value = (rand()%64512) + 1024;	
 }
 
 int main(int argc, char *argv[]){
@@ -141,7 +139,6 @@ int main(int argc, char *argv[]){
     //declare variables and data structures
     int status; 
     int serv_sock; //server socket
-    int option = 1;
     
     struct sigaction sa;
     
@@ -175,8 +172,6 @@ int main(int argc, char *argv[]){
         }
         cout << "Socket established." << endl;
         
-        setsockopt(serv_sock, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
-
         if ((bind(serv_sock, p->ai_addr, p->ai_addrlen)) == -1) {
             perror("server: bind");
             continue;
@@ -191,7 +186,9 @@ int main(int argc, char *argv[]){
     
     cout << "Socket binded." << endl;
     
-    cout << "Server is now online ...\n" << endl;
+    //cout << "Waiting to recvfrom ..." << endl;
+    
+    cout << "Server is now online ..." << endl;
     
     //initialize variables for recvfrom
     char buff[buffer_size];
@@ -202,7 +199,6 @@ int main(int argc, char *argv[]){
     struct sockaddr_in* new_address;
     new_address = (struct sockaddr_in*) &new_addr;
     new_address->sin_port = htons(generate_ephemeral_port());
-    //new_address->sin_port = htons(0);
     
     sa.sa_handler = handle_sigchld; // kill all dead processes
     sigemptyset(&sa.sa_mask);
@@ -220,144 +216,139 @@ int main(int argc, char *argv[]){
             exit(1);
         }
         struct sockaddr_in* new_client_addr = (struct sockaddr_in*)&client_addr;
-        cout << "Server: got packet from IP address: " << 
-        inet_ntop(client_addr.ss_family,get_addr((struct sockaddr *)&client_addr),s, sizeof s) << " "
-        << "Port: " << ntohs(new_client_addr->sin_port) << endl;
+        cout << "Server: got packet from %s\n" << 
+        inet_ntop(client_addr.ss_family,get_addr((struct sockaddr *)&client_addr),s, sizeof s)<< ntohs(new_client_addr->sin_port) << endl;
         
-        cout << "Server: packet is "<< bytes << " bytes long." << endl;
+        cout << "listener: packet is "<< bytes << " bytes long.\n" << endl;
         
-        struct TFTP *send_packet;
-        send_packet = read_packet(buff);
+        struct TFTP *out;
+        out = read_packet(buff);
         
-        if(send_packet->opcode != RRQ && send_packet->opcode != WRQ){
+        if(out->opcode != RRQ && out->opcode != WRQ){
             cout << "Request from client is invalid." << endl;
             continue;
         }
         
-        if(!fork()){
-            close(serv_sock); //close current server socket then create new server socket
-
-            //create ephemeral socket to transfer files with client.
-            if((serv_sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1){
-                perror("server: socket");
-            }
+        close(serv_sock); //close current server socket then create new server socket
         
-            setsockopt(serv_sock, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
-            
-            socklen_t new_len = sizeof new_addr;
-            
-            if ((bind(serv_sock, &new_addr, sizeof(new_addr))) == -1) {
-                perror("server: bind");
+        
+        //create ephemeral socket to transfer files with client.
+        if((serv_sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1){
+            perror("server: socket");
+        }
+        
+        if ((bind(serv_sock, p->ai_addr, p->ai_addrlen)) == -1) {
+            perror("server: bind");
+        }
+        
+        socklen_t new_len = sizeof new_addr;
+        
+        if(getsockname(serv_sock, &new_addr, &new_len) == -1){
+            perror("getsockname");
+        }
+        
+        //open file which would be transmitted
+        ifstream f;
+        char *file_name = out->filename;
+        f.open(file_name, ios::in);
+        if(f.fail()){
+            //---------this might have issues-------//
+            cerr << "Error: " << strerror(errno);
+            string str = "Can not open requested file.";
+            char *err_msg = new char[str.length() + 1];
+            strcpy(err_msg, str.c_str());
+            int err_len = sizeof(err_msg);
+            const char *error_packet = to_tftp(ERROR, 1, err_msg, err_len);
+            //free(err);
+            if((bytes = sendto(serv_sock,error_packet,err_len + 5, 0, (struct sockaddr *)&client_addr,client_len)) == -1 ){
+                    perror("server: sendto");
+                    //exit(0);
+                    continue; //modified, might have issues
+            }
+            //------------end--------------//
+            //exit(0);
+        }
+        
+        //calculate the file size
+        streampos start, end;
+        start = f.tellg();
+        f.seekg(0, ios::end);
+        end = f.tellg();
+        f.seekg(0, ios::beg);
+        int file_size = end - start;
+        int packet_num = file_size/512 + 1;
+        
+        cout << "The ephemeral port for this transmission is " << ntohs(new_address->sin_port) << "." << endl;
+        cout << "File size is: " << file_size << " bytes." << endl;
+        cout << "Packet count is: " << packet_num << "." << endl;
+        
+        
+        
+        char file_buf[buffer_size + 1];
+        int block_number = 0;
+        int last_ack = 0;
+        int resend_count = 0;
+        int f_len;
+        
+        FD_SET(serv_sock, &master);
+        maxfd = serv_sock;
+        struct timeval t;
+        t.tv_sec = 1;
+        //t.tv_usec = 50000;
+        
+        while(last_ack < packet_num){
+            if(last_ack == block_number){
+                f.read(file_buf, buffer_size);
+                f_len = f.gcount(); //count the characters get from file
+                block_number++;
+                resend_count = 0;
             }
             
-            if(getsockname(serv_sock, &new_addr, &new_len) == -1){
-                perror("getsockname");
-            }
-            
-            //open file which would be transmitted
-            ifstream f;
-            char *file_name = send_packet->filename;
-            f.open(file_name, ios::in);
-            if(!f.is_open()){
-                //---------this might have issues-------//
-                cout << "Could not find requested file: " << send_packet -> filename << endl;
-                cerr << "Error: " << strerror(errno) << endl;
-                string str = "Can not open requested file.";
-                char *err_msg = new char[str.length() + 1];
-                strcpy(err_msg, str.c_str());
-                int err_len = sizeof(err_msg);
-                const char *error_packet = to_tftp(ERROR, 1, err_msg, err_len);
-                //free(err);
-                if((bytes = sendto(serv_sock,error_packet,err_len + 5, 0, (struct sockaddr *)&client_addr,client_len)) == -1 ){
-                        perror("server: sendto");
-                        //exit(0);
-                        continue; //modified might have issues
+            if(resend_count > 0){
+                if(resend_count == 51){
+                    cout << "Client Timeout." << endl;
+                    break;
                 }
-                //------------end--------------//
+                cout << "Try to resend packet." << endl;
+            }
+            
+            char *packet = to_tftp(DATA, block_number, file_buf, f_len);  // convert data the TFTP packet structure
+            
+            if((bytes = sendto(serv_sock, packet, f_len + 4, 0, (struct sockaddr *)&client_addr,client_len)) == -1){
+                perror("Server: sendto");
+                exit(0);
+            }
+            free(packet);
+            
+            t.tv_sec = 1; //reset timer
+            
+            read_fds = master;
+            
+            //select to handle multiple clients connections
+            if(select(maxfd + 1, &read_fds, NULL, NULL, &t) == -1){
+                perror("Server: select");
                 exit(0);
             }
             
-            //calculate the file size
-            streampos start, end;
-            start = f.tellg();
-            f.seekg(0, ios::end);
-            end = f.tellg();
-            f.seekg(0, ios::beg);
-            int file_size = end - start;
-            int packet_num = file_size/512 + 1;
-            
-            cout << "The ephemeral port for this transmission is " << ntohs(new_address->sin_port) << "." << endl;
-            cout << "File size is: " << file_size << " bytes." << endl;
-            cout << "Packet count is: " << packet_num << endl;
-            
-            char file_buf[buffer_size + 1];
-            int block_number = 0;
-            int last_ack = 0;
-            int resend_count = 0;
-            int f_len;
-            
-            FD_SET(serv_sock, &master);
-            maxfd = serv_sock;
-            struct timeval t;
-            t.tv_sec = 1;
-            //t.tv_usec = 50000;
-            
-            while(last_ack < packet_num){
-                if(last_ack == block_number){
-                    f.read(file_buf, buffer_size);
-                    f_len = f.gcount(); //count the characters get from file
-                    block_number++;
-                    resend_count = 0;
-                }
-                
-                if(resend_count > 0){
-                    if(resend_count == 51){
-                        cout << "Client Timeout." << endl;
-                        break;
-                    }
-                    cout << "Try to resend packet." << endl;
-                }
-                
-                char *packet = to_tftp(DATA, block_number, file_buf, f_len);  // convert data the TFTP packet structure
-                
-                if((bytes = sendto(serv_sock, packet, f_len + 4, 0, (struct sockaddr *)&client_addr,client_len)) == -1){
-                    perror("Server: sendto");
+            if(FD_ISSET(serv_sock, &read_fds)){
+                struct sockaddr_storage temp_addr;
+                socklen_t temp_len = sizeof temp_addr;
+                if((bytes = recvfrom(serv_sock, buff, 4, 0, (struct sockaddr *)&temp_addr, &temp_len)) == -1){
+                    perror("recvfrom");
                     exit(0);
                 }
-                free(packet);
-                
-                t.tv_sec = 1; //reset timer
-                
-                read_fds = master;
-                
-                //select to handle multiple clients connections
-                if(select(maxfd + 1, &read_fds, NULL, NULL, &t) == -1){
-                    perror("Server: select");
-                    exit(0);
-                }
-                
-                if(FD_ISSET(serv_sock, &read_fds)){
-                    struct sockaddr_storage temp_addr;
-                    socklen_t temp_len = sizeof temp_addr;
-                    if((bytes = recvfrom(serv_sock, buff, 4, 0, (struct sockaddr *)&temp_addr, &temp_len)) == -1){
-                        perror("recvfrom");
-                        exit(0);
-                    }
-                }
-                struct sockaddr_in* temp_client_addr = (struct sockaddr_in*)& client_addr;
-                
-                if(temp_client_addr->sin_addr.s_addr == new_client_addr->sin_addr.s_addr){
-                    send_packet = read_packet(buff);
-                    last_ack = send_packet->block_number;
-                }
-                resend_count ++;
-            }//end of transfering packets
-            f.close();
-            close(serv_sock);
-            cout << "File transmission complete.\n" << endl;
-            exit(0);
-        }
-        free(send_packet);
+            }
+            struct sockaddr_in* temp_client_addr = (struct sockaddr_in*)& client_addr;
+            
+            if(temp_client_addr->sin_addr.s_addr == new_client_addr->sin_addr.s_addr){
+                out = read_packet(buff);
+                last_ack = out->block_number;
+            }
+            resend_count ++;
+        }//end of transfering packets
+        f.close();
+        cout << "File has been tranferred." << endl;
+        free(out);
     }
     
     close(serv_sock);
