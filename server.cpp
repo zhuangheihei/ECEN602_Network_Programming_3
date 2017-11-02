@@ -261,13 +261,13 @@ int main(int argc, char *argv[]){
             if(!f.is_open()){
                 //---------this might have issues-------//
                 cout << "Could not find requested file: " << send_packet -> filename << endl;
-                cerr << "Error: " << strerror(errno) << endl;
+                cerr << "Error: " << strerror(errno) << "\n" <<endl;
                 string str = "Can not open requested file.";
-                char *err_msg = new char[str.length() + 1];
-                strcpy(err_msg, str.c_str());
-                int err_len = sizeof(err_msg);
+                char *err_msg = (char *)malloc(512*sizeof(char));
+                err_msg = strcpy(err_msg, str.c_str());
+                int err_len = strlen(err_msg);
                 const char *error_packet = to_tftp(ERROR, 1, err_msg, err_len);
-                //free(err);
+                free(err_msg);
                 if((bytes = sendto(serv_sock,error_packet,err_len + 5, 0, (struct sockaddr *)&client_addr,client_len)) == -1 ){
                         perror("server: sendto");
                         //exit(0);
