@@ -204,7 +204,7 @@ int main(int argc, char *argv[]){
     //new_address->sin_port = htons(generate_ephemeral_port());
     new_address->sin_port = htons(0);
     
-    sa.sa_handler = handle_sigchld; // kill all dead processes
+    sa.sa_handler = handle_sigchld; // wipe out all dead processes
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_RESTART;
     if (sigaction(SIGCHLD, &sa, NULL) == -1) {
@@ -307,7 +307,7 @@ int main(int argc, char *argv[]){
             
             //send file
             do{
-                //modified here 
+                //sequence number wrap around 
                 if(block_number == 65536){
                     block_number = 0;
                 }
@@ -321,7 +321,7 @@ int main(int argc, char *argv[]){
                 }
                 
                 if(resend_count > 0){
-                    if(resend_count == 51){
+                    if(resend_count == 11){
                         cout << "Client Timeout." << endl;
                         break;
                     }
